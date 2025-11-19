@@ -1,7 +1,7 @@
 module.exports = {
-  widgetName: "jsDev",
+  widgetName: "JJB_RouteList",
   server: "$",
-  file: "jsDev",
+  file: "Operations_Sandbox",
   uploadScript: "UploadToHTML",
   reloadScript: "Load Widget",
 };
