@@ -105,6 +105,12 @@ table.on("cellEdited", function(cell){
     };
     console.log("Sequence edited:", result);
     callFM(result);
+    
+    // Auto-resort the table after sequence edit
+    table.setSort([
+      {column:"fieldData.Route", dir:"asc"},
+      {column:"fieldData.Sequence", dir:"asc"}
+    ]);
   }
 });
 
@@ -113,5 +119,73 @@ window.callFM = (result) => {
   result.mode = "sortUpdate";
   FileMaker.PerformScript("Manage: Route wv", JSON.stringify(result));
 };
+
+// Resequence button functionality
+document.getElementById('resequence-btn').addEventListener('click', function() {
+  const data = table.getData();
+  const updates = [];
+  const processingMessage = document.getElementById('processing-message');
+  const resequenceBtn = document.getElementById('resequence-btn');
+  
+  // Sort data by route and current sequence to maintain order
+  const sortedData = data.sort((a, b) => {
+    if (a.fieldData.Route !== b.fieldData.Route) {
+      return a.fieldData.Route.localeCompare(b.fieldData.Route);
+    }
+    return a.fieldData.Sequence - b.fieldData.Sequence;
+  });
+  
+  // Group by route and resequence within each route
+  const routeGroups = {};
+  sortedData.forEach(row => {
+    const route = row.fieldData.Route;
+    if (!routeGroups[route]) {
+      routeGroups[route] = [];
+    }
+    routeGroups[route].push(row);
+  });
+  
+  // Resequence each route starting from 1
+  Object.keys(routeGroups).forEach(route => {
+    routeGroups[route].forEach((row, index) => {
+      const newSequence = index + 1;
+      if (row.fieldData.Sequence !== newSequence) {
+        updates.push({
+          id: row.id,
+          fieldData: { ...row.fieldData, Sequence: newSequence }
+        });
+      }
+    });
+  });
+  
+  // Update table with new sequences
+  if (updates.length > 0) {
+    // Show processing message and disable button
+    processingMessage.style.display = 'block';
+    resequenceBtn.disabled = true;
+    resequenceBtn.style.opacity = '0.6';
+    
+    table.updateData(updates);
+    
+    // Call FileMaker script for each update
+    updates.forEach(update => {
+      const result = {
+        curRow: update.fieldData.__ID,
+        newValue: update.fieldData.Sequence,
+        mode: "resequence"
+      };
+      callFM(result);
+    });
+    
+    console.log(`Resequenced ${updates.length} items`);
+    
+    // Hide processing message and re-enable button after a delay
+    setTimeout(() => {
+      processingMessage.style.display = 'none';
+      resequenceBtn.disabled = false;
+      resequenceBtn.style.opacity = '1';
+    }, updates.length * 100 + 500); // Estimate processing time based on number of updates
+  }
+});
 
 }
