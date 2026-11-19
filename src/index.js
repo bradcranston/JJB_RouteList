@@ -6,14 +6,15 @@ window.loadData = (json) => {
 //define some sample data
 const tabledata = JSON.parse(json) ;
 
-// Filter data to show only one row per unique customer number and use SizeDisplayFinal
-const uniqueCustomers = new Map();
+// Filter data to show only one row per unique _ID_Site
+const uniqueRecords = new Map();
 const filteredData = [];
 
 tabledata.forEach(obj => {
-  const custNo = obj.fieldData.CustomerNo;
-  if (!uniqueCustomers.has(custNo)) {
-    uniqueCustomers.set(custNo, obj);
+  const siteID = obj.fieldData._ID_Site;
+  
+  if (!uniqueRecords.has(siteID)) {
+    uniqueRecords.set(siteID, obj);
     filteredData.push(obj);
   }
 });
@@ -70,14 +71,34 @@ const table = new Tabulator("#example-table", {
 
 table.on("rowMoved", function(row){
   //row - row component
-  nextRow = row.getNextRow().getData().fieldData.Sequence;
-  prevRow = row.getPrevRow().getData().fieldData.Sequence;
-  curRow = row.getData().fieldData.__ID;
-  index = row.getIndex();
-  currentData = row.getData();
-newValue = prevRow + ((nextRow-prevRow)/2);
+  const nextRowObj = row.getNextRow();
+  const prevRowObj = row.getPrevRow();
+  
+  let nextRow, prevRow, newValue;
+  
+  // Handle different positions
+  if (!prevRowObj) {
+    // Moved to top - get sequence from next row and subtract 1
+    nextRow = nextRowObj ? nextRowObj.getData().fieldData.Sequence : 1;
+    prevRow = 0;
+    newValue = nextRow - 1;
+  } else if (!nextRowObj) {
+    // Moved to bottom - get sequence from previous row and add 1
+    prevRow = prevRowObj.getData().fieldData.Sequence;
+    nextRow = prevRow + 2;
+    newValue = prevRow + 1;
+  } else {
+    // Moved in between - calculate midpoint
+    nextRow = nextRowObj.getData().fieldData.Sequence;
+    prevRow = prevRowObj.getData().fieldData.Sequence;
+    newValue = prevRow + ((nextRow - prevRow) / 2);
+  }
+  
+  const curRow = row.getData().fieldData.__ID;
+  const index = row.getIndex();
+  const currentData = row.getData();
 
-table.updateData([{id:index, fieldData:{...currentData.fieldData,Sequence:newValue}}]);
+  table.updateData([{id:index, fieldData:{...currentData.fieldData,Sequence:newValue}}]);
 
   result = {
     nextRow:nextRow,
@@ -127,8 +148,8 @@ document.getElementById('resequence-btn').addEventListener('click', function() {
   const processingMessage = document.getElementById('processing-message');
   const resequenceBtn = document.getElementById('resequence-btn');
   
-  // Sort data by route and current sequence to maintain order
-  const sortedData = data.sort((a, b) => {
+  // Sort data by route and current sequence to maintain order (create copy to avoid mutation)
+  const sortedData = [...data].sort((a, b) => {
     if (a.fieldData.Route !== b.fieldData.Route) {
       return a.fieldData.Route.localeCompare(b.fieldData.Route);
     }
